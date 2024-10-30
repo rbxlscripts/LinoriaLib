@@ -1,24 +1,32 @@
-local cloneref = cloneref or function(o) return o end
+local cloneref = (cloneref or clonereference or function(instance: any) return instance end)
 local httpService = cloneref(game:GetService('HttpService'))
-local isfolder, isfile, listfiles = isfolder, isfile, listfiles
+local isfolder, isfile, listfiles = isfolder, isfile, listfiles;
 
-if typeof(copyfunction) == "function" then -- fix for shitsploits
-	local isfolder_, isfile_, listfiles_ = copyfunction(isfolder), copyfunction(isfile), copyfunction(listfiles);
-	local success_, error_ = pcall(function() return isfolder_(tostring(math.random(9999, 9999999))) end);
+if typeof(copyfunction) == "function" then 
+	-- Fix is_____ functions for shitsploits, those functions should never error, only return a boolean.
 
-	if success_ == false or (tostring(error_):match("not") and tostring(error_):match("found")) then
+	local 
+		isfolder_copy,
+		isfile_copy, 
+		listfiles_copy = copyfunction(isfolder), copyfunction(isfile), copyfunction(listfiles);
+
+	local isfolder_success, isfolder_error = pcall(function() 
+		return isfolder_copy(tostring(math.random(89844498, 999999999))) 
+	end);
+
+	if isfolder_success == false or typeof(isfolder_error) ~= "boolean" then
 		isfolder = function(folder)
-			local success, data = pcall(isfolder_, folder)
+			local success, data = pcall(isfolder_copy, folder)
 			return (if success then data else false)
 		end;
 	
 		isfile = function(file)
-			local success, data = pcall(isfile_, file)
+			local success, data = pcall(isfile_copy, file)
 			return (if success then data else false)
 		end;
 	
 		listfiles = function(folder)
-			local success, data = pcall(listfiles_, folder)
+			local success, data = pcall(listfiles_copy, folder)
 			return (if success then data else {})
 		end;
 	end
@@ -34,8 +42,8 @@ local SaveManager = {} do
 				return { type = 'Toggle', idx = idx, value = object.Value } 
 			end,
 			Load = function(idx, data)
-				if getgenv().Linoria.Toggles[idx] then 
-					getgenv().Linoria.Toggles[idx]:SetValue(data.value)
+				if SaveManager.Library.Toggles[idx] then 
+					SaveManager.Library.Toggles[idx]:SetValue(data.value)
 				end
 			end,
 		},
@@ -44,8 +52,8 @@ local SaveManager = {} do
 				return { type = 'Slider', idx = idx, value = tostring(object.Value) }
 			end,
 			Load = function(idx, data)
-				if getgenv().Linoria.Options[idx] then 
-					getgenv().Linoria.Options[idx]:SetValue(data.value)
+				if SaveManager.Library.Options[idx] then 
+					SaveManager.Library.Options[idx]:SetValue(data.value)
 				end
 			end,
 		},
@@ -54,8 +62,8 @@ local SaveManager = {} do
 				return { type = 'Dropdown', idx = idx, value = object.Value, mutli = object.Multi }
 			end,
 			Load = function(idx, data)
-				if getgenv().Linoria.Options[idx] then 
-					getgenv().Linoria.Options[idx]:SetValue(data.value)
+				if SaveManager.Library.Options[idx] then 
+					SaveManager.Library.Options[idx]:SetValue(data.value)
 				end
 			end,
 		},
@@ -64,8 +72,8 @@ local SaveManager = {} do
 				return { type = 'ColorPicker', idx = idx, value = object.Value:ToHex(), transparency = object.Transparency }
 			end,
 			Load = function(idx, data)
-				if getgenv().Linoria.Options[idx] then 
-					getgenv().Linoria.Options[idx]:SetValueRGB(Color3.fromHex(data.value), data.transparency)
+				if SaveManager.Library.Options[idx] then 
+					SaveManager.Library.Options[idx]:SetValueRGB(Color3.fromHex(data.value), data.transparency)
 				end
 			end,
 		},
@@ -74,8 +82,8 @@ local SaveManager = {} do
 				return { type = 'KeyPicker', idx = idx, mode = object.Mode, key = object.Value }
 			end,
 			Load = function(idx, data)
-				if getgenv().Linoria.Options[idx] then 
-					getgenv().Linoria.Options[idx]:SetValue({ data.key, data.mode })
+				if SaveManager.Library.Options[idx] then 
+					SaveManager.Library.Options[idx]:SetValue({ data.key, data.mode })
 				end
 			end,
 		},
@@ -85,13 +93,26 @@ local SaveManager = {} do
 				return { type = 'Input', idx = idx, text = object.Value }
 			end,
 			Load = function(idx, data)
-				if getgenv().Linoria.Options[idx] and type(data.text) == 'string' then
-					getgenv().Linoria.Options[idx]:SetValue(data.text)
+				if SaveManager.Library.Options[idx] and type(data.text) == 'string' then
+					SaveManager.Library.Options[idx]:SetValue(data.text)
 				end
 			end,
 		},
 	}
 
+	function SaveManager:SetLibrary(library)
+		self.Library = library
+	end
+
+	function SaveManager:IgnoreThemeSettings()
+		self:SetIgnoreIndexes({ 
+			"BackgroundColor", "MainColor", "AccentColor", "OutlineColor", "FontColor", -- themes
+			"ThemeManager_ThemeList", 'ThemeManager_CustomThemeList', 'ThemeManager_CustomThemeName', -- themes
+			"VideoLink",
+		})
+	end
+
+	--// Foldes \\--
 	function SaveManager:CheckSubFolder(createFolder)
 		if typeof(self.SubFolder) ~= "string" or self.SubFolder == "" then return false end
 
@@ -106,13 +127,13 @@ local SaveManager = {} do
 	
 	function SaveManager:GetPaths()
 	    local paths = {
-			self.Folder,
-			self.Folder .. '/themes',
-			self.Folder .. '/settings'
+			[1] = self.Folder,
+			[2] = self.Folder .. '/themes',
+			[3] = self.Folder .. '/settings'
 		}
 		
 		if SaveManager:CheckSubFolder(false) then 
-		    table.insert(paths, self.Folder .. "/settings/" .. self.SubFolder);
+		    paths[#paths + 1] = self.Folder .. "/settings/" .. self.SubFolder;
 		end
 		
 		return paths
@@ -123,17 +144,17 @@ local SaveManager = {} do
 
 		for i = 1, #paths do
 			local str = paths[i]
-			if not isfolder(str) then
-				makefolder(str)
-			end
+			if isfolder(str) then continue end
+
+			makefolder(str)
 		end
 	end
 
 	function SaveManager:CheckFolderTree()
-		if not isfolder(self.Folder) then
-			SaveManager:BuildFolderTree()
-			task.wait()
-		end
+		if isfolder(self.Folder) then return end
+		SaveManager:BuildFolderTree()
+
+		task.wait(0.1)
 	end
 	
 	function SaveManager:SetIgnoreIndexes(list)
@@ -152,6 +173,7 @@ local SaveManager = {} do
 		self:BuildFolderTree()
 	end
 
+	--// Save, Load, Delete, Refresh \\--
 	function SaveManager:Save(name)
 		if (not name) then
 			return false, 'no config file is selected'
@@ -167,13 +189,13 @@ local SaveManager = {} do
 			objects = {}
 		}
 
-		for idx, toggle in next, getgenv().Linoria.Toggles do
+		for idx, toggle in next, self.Library.Toggles do
 			if self.Ignore[idx] then continue end
 
 			table.insert(data.objects, self.Parser[toggle.Type].Save(idx, toggle))
 		end
 
-		for idx, option in next, getgenv().Linoria.Options do
+		for idx, option in next, self.Library.Options do
 			if not self.Parser[option.Type] then continue end
 			if self.Ignore[idx] then continue end
 
@@ -232,26 +254,20 @@ local SaveManager = {} do
 		return true
 	end
 
-	function SaveManager:IgnoreThemeSettings()
-		self:SetIgnoreIndexes({ 
-			"BackgroundColor", "MainColor", "AccentColor", "OutlineColor", "FontColor", -- themes
-			"ThemeManager_ThemeList", 'ThemeManager_CustomThemeList', 'ThemeManager_CustomThemeName', -- themes
-			"VideoLink",
-		})
-	end
-
 	function SaveManager:RefreshConfigList()
 		local success, data = pcall(function()
 			SaveManager:CheckFolderTree()
 			
 			local list = {}
+			local out = {}
+
 	        if SaveManager:CheckSubFolder(true) then 
 				list = listfiles(self.Folder .. "/settings/" .. self.SubFolder)
 	        else
-		        list = listfiles(self.Folder .. '/settings')
+		        list = listfiles(self.Folder .. "/settings")
 	        end
+			if typeof(list) ~= "table" then list = {} end
 	
-			local out = {}
 			for i = 1, #list do
 				local file = list[i]
 				if file:sub(-5) == '.json' then
@@ -271,31 +287,37 @@ local SaveManager = {} do
 					end
 				end
 			end
+
 			return out
 		end)
 
 		if (not success) then
-			if self.Library then self.Library:Notify('Failed to load config list: ' .. tostring(data)) end
+			if self.Library then
+				self.Library:Notify('Failed to load config list: ' .. tostring(data)) 
+			else
+				warn('Failed to load config list: ' .. tostring(data))
+			end
+
 			return {}
 		end
-					
+			
 		return data
 	end
 
-	function SaveManager:SetLibrary(library)
-		self.Library = library
-	end
-
-	function SaveManager:LoadAutoloadConfig()
+	--// Auto Load \\--
+	function SaveManager:LoadAutoLoadConfig()
 		SaveManager:CheckFolderTree()
 		
-		local autoLoadPath = self.Folder .. '/settings/autoload.txt'
+		local autoLoadPath = self.Folder .. "/settings/autoload.txt"
 		if SaveManager:CheckSubFolder(true) then 
 		    autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
 		end
 		
 		if isfile(autoLoadPath) then
-			local name = readfile(autoLoadPath)
+			local successRead, name = pcall(readfile, autoLoadPath)
+			if not successRead then 
+				return self.Library:Notify('Failed to load autoload config: write file error')
+			end
 
 			local success, err = self:Load(name)
 			if not success then
@@ -306,6 +328,35 @@ local SaveManager = {} do
 		end
 	end
 
+	function SaveManager:SaveAutoLoadConfig(name)
+		SaveManager:CheckFolderTree()
+		
+		local autoLoadPath = self.Folder .. "/settings/autoload.txt"
+		if SaveManager:CheckSubFolder(true) then 
+		    autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
+		end
+		
+		local success = pcall(writefile, autoLoadPath, name)
+		if not success then return false, 'write file error' end
+
+		return true, ""
+	end
+
+	function SaveManager:DeleteAutoLoadConfig()
+		SaveManager:CheckFolderTree()
+		
+		local autoLoadPath = self.Folder .. "/settings/autoload.txt"
+		if SaveManager:CheckSubFolder(true) then 
+		    autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
+		end
+		
+		local success = pcall(delfile, autoLoadPath)
+		if not success then return false, 'delete file error' end
+
+		return true, ""
+	end
+
+	--// GUI \\--
 	function SaveManager:BuildConfigSection(tab)
 		assert(self.Library, 'Must set SaveManager.Library')
 
@@ -313,7 +364,7 @@ local SaveManager = {} do
 
 		section:AddInput('SaveManager_ConfigName',    { Text = 'Config name' })
 		section:AddButton('Create config', function()
-			local name = getgenv().Linoria.Options.SaveManager_ConfigName.Value
+			local name = self.Library.Options.SaveManager_ConfigName.Value
 
 			if name:gsub(' ', '') == '' then 
 				return self.Library:Notify('Invalid config name (empty)', 2)
@@ -326,15 +377,15 @@ local SaveManager = {} do
 
 			self.Library:Notify(string.format('Created config %q', name))
 
-			getgenv().Linoria.Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
-			getgenv().Linoria.Options.SaveManager_ConfigList:SetValue(nil)
+			self.Library.Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
+			self.Library.Options.SaveManager_ConfigList:SetValue(nil)
 		end)
 
 		section:AddDivider()
 
 		section:AddDropdown('SaveManager_ConfigList', { Text = 'Config list', Values = self:RefreshConfigList(), AllowNull = true })
 		section:AddButton('Load config', function()
-			local name = getgenv().Linoria.Options.SaveManager_ConfigList.Value
+			local name = self.Library.Options.SaveManager_ConfigList.Value
 
 			local success, err = self:Load(name)
 			if not success then
@@ -344,7 +395,7 @@ local SaveManager = {} do
 			self.Library:Notify(string.format('Loaded config %q', name))
 		end)
 		section:AddButton('Overwrite config', function()
-			local name = getgenv().Linoria.Options.SaveManager_ConfigList.Value
+			local name = self.Library.Options.SaveManager_ConfigList.Value
 
 			local success, err = self:Save(name)
 			if not success then
@@ -355,7 +406,7 @@ local SaveManager = {} do
 		end)
 		
 		section:AddButton('Delete config', function()
-			local name = getgenv().Linoria.Options.SaveManager_ConfigList.Value
+			local name = self.Library.Options.SaveManager_ConfigList.Value
 
 			local success, err = self:Delete(name)
 			if not success then
@@ -363,57 +414,40 @@ local SaveManager = {} do
 			end
 
 			self.Library:Notify(string.format('Deleted config %q', name))
-			getgenv().Linoria.Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
-			getgenv().Linoria.Options.SaveManager_ConfigList:SetValue(nil)
+			self.Library.Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
+			self.Library.Options.SaveManager_ConfigList:SetValue(nil)
 		end)
 
 		section:AddButton('Refresh list', function()
-			getgenv().Linoria.Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
-			getgenv().Linoria.Options.SaveManager_ConfigList:SetValue(nil)
+			self.Library.Options.SaveManager_ConfigList:SetValues(self:RefreshConfigList())
+			self.Library.Options.SaveManager_ConfigList:SetValue(nil)
 		end)
 
 		section:AddButton('Set as autoload', function()
-			local name = getgenv().Linoria.Options.SaveManager_ConfigList.Value
-			
-			local autoLoadPath = self.Folder .. '/settings/autoload.txt'
-    		if SaveManager:CheckSubFolder(true) then 
-    		    autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
-    		end
-			writefile(autoLoadPath, name)
-			
+			local name = self.Library.Options.SaveManager_ConfigList.Value
+
+			local success, err = self:SaveAutoLoadConfig(name)
+			if not success then
+				return self.Library:Notify('Failed to set autoload config: ' .. err)
+			end
+
 			SaveManager.AutoloadLabel:SetText('Current autoload config: ' .. name)
 			self.Library:Notify(string.format('Set %q to auto load', name))
 		end)
 		section:AddButton('Reset autoload', function()
-		    local autoLoadPath = self.Folder .. '/settings/autoload.txt'
-    		if SaveManager:CheckSubFolder(true) then 
-    		    autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
-    		end
-    		
-			local success = pcall(delfile, autoLoadPath)
-			if not success then 
-				return self.Library:Notify('Failed to reset autoload: delete file error')
+		    local success, err = self:DeleteAutoLoadConfig()
+			if not success then
+				return self.Library:Notify('Failed to set autoload config: ' .. err)
 			end
-				
+			
 			self.Library:Notify('Set autoload to none')
 			SaveManager.AutoloadLabel:SetText('Current autoload config: none')
 		end)
 
-		SaveManager.AutoloadLabel = section:AddLabel('Current autoload config: none', true)
+		self.AutoloadLabel = section:AddLabel('Current autoload config: none', true)
         
-        do
-            local autoLoadPath = self.Folder .. '/settings/autoload.txt'
-    		if SaveManager:CheckSubFolder(true) then 
-    		    autoLoadPath = self.Folder .. "/settings/" .. self.SubFolder .. "/autoload.txt"
-    		end
-    		
-    		if isfile(autoLoadPath) then
-    			local name = readfile(autoLoadPath)
-    			SaveManager.AutoloadLabel:SetText('Current autoload config: ' .. name)
-    		end
-		end
-
-		SaveManager:SetIgnoreIndexes({ 'SaveManager_ConfigList', 'SaveManager_ConfigName' })
+        self:LoadAutoLoadConfig()
+		self:SetIgnoreIndexes({ 'SaveManager_ConfigList', 'SaveManager_ConfigName' })
 	end
 
 	SaveManager:BuildFolderTree()
